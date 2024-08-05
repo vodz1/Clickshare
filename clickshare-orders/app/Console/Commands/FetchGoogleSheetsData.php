@@ -30,52 +30,49 @@ class FetchGoogleSheetsData extends Command
         $service = new Sheets($client);
         $spreadsheetId = config('google-sheets.spreadsheet_id');
 
+        // Fetch product data
         $productRange = 'Products!A2:D';
         $productResponse = $service->spreadsheets_values->get($spreadsheetId, $productRange);
         $productValues = $productResponse->getValues();
 
         $products = [];
-        foreach ($productValues as $index => $row) {
-            if ($index === 0) {
-                continue;
-            }
-            if (count($row) >= 4) {
-                if (empty($row[0]) || empty($row[3])) {
-                    Log::error('Missing name or product code in row:', $row);
-                    continue; // Skip this row
-                }
-    
-                $product = Product::updateOrCreate(
-                    ['product_code' => $row[3]], // Product Code is in the 4th column (index 3)
-                    [
-                        'product_name' => $row[0], // Name is in the 1st column (index 0)
-                        'description' => $row[1], // Description is in the 2nd column (index 1)
-                        'country' => $row[2] // Country is in the 3rd column (index 2)
-                    ]
-                );
-                $products[$row[3]] = $product->id; // Store product ID
-            } else {
-                Log::error('Row does not have enough columns:', $row);
-            }
+        foreach ($productValues as $row) {
+            $product = Product::updateOrCreate(
+                ['product_code' => $row[3]], // Assuming product code is unique
+                [
+                    'product_name' => $row[0], 
+                    'description' => $row[1], 
+                    'country' => $row[2]
+                ]
+            );
+            $products[$row[3]] = $product->id; // Store product ID
         }
     
         Log::info('Products fetched:', $products);
     
+        // Fetch order data
         $orderRange = 'Orders!A2:F';
         $orderResponse = $service->spreadsheets_values->get($spreadsheetId, $orderRange);
         $orderValues = $orderResponse->getValues();
 
         foreach ($orderValues as $row) {
-            $order = Order::updateOrCreate(
-                ['id' => $row[0]],
-                [
-                    'client_name' => $row[1],
-                    'phone_number' => $row[2],
-                    'product_code' => $row[3],
-                    'final_price' => $row[4],
-                    'quantity' => $row[5]
-                ]
-            );
+            $orderData = [
+                'client_name' => $row[1],
+                'phone_number' => $row[2],
+                'product_code' => $row[3],
+                'final_price' => $row[4],
+                'quantity' => $row[5]
+            ];
+
+            $order = Order::where('phone_number', $orderData['phone_number'])->first();
+
+            if ($order) {
+                // Update existing order
+                $order->update($orderData);
+            } else {
+                // Create a new order
+                $order = Order::create($orderData);
+            }
 
             $productCode = $row[3];
             if (isset($products[$productCode])) {
@@ -86,5 +83,4 @@ class FetchGoogleSheetsData extends Command
         Log::info('Data fetched and stored successfully.');
 
         $this->info('Data fetched and stored successfully.');
-    }
-}
+    }}

@@ -1,7 +1,8 @@
 <?php
 
+use App\Livewire\Counter;
 use Illuminate\Support\Facades\Route;
-use App\Http\Livewire\Orders;
+use App\Livewire\Orders;
 
 
 /*
